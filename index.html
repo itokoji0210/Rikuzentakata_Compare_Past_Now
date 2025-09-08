@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>YouTube 比較（フェード中心＋サブスライダー／同期・タイムライン・全画面下部フェーダー）</title>
+<title>YouTube 比較（デフォルト：中央スライダー／左=過去・右=今／デモ往復）</title>
 <style>
   :root{
     --split:50%;
@@ -26,9 +26,12 @@
   .layer{position:absolute;inset:0}
   .ytbox{position:absolute;inset:0}
 
-  /* 上レイヤ（今）表示：フェードがメイン、スライダーはサブ */
+  /* 表示ロジック
+     - スライダー：上(今)を「右側だけ」見せる → 左=過去、右=今
+     - フェード：上(今)の不透明度で比較（中央バー非表示）
+  */
+  .mode-slider .top{opacity:1;clip-path:inset(0 0 0 var(--split))} /* ←右側を表示 */
   .mode-fade   .top{opacity:var(--fade);transition:opacity .06s linear;clip-path:inset(0 0 0 0)}
-  .mode-slider .top{opacity:1;clip-path:inset(0 calc(100% - var(--split)) 0 0)}
 
   /* ラベル帯 & ミニフェーダー（上） */
   .topband{position:absolute;left:0;right:0;top:0;z-index:6;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.05))}
@@ -40,14 +43,14 @@
   .fade-mini{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#1b1f2a;border:1px solid #2a3142}
   .fade-mini input{width:140px;height:6px}
 
-  /* クリックで停止しないためのクリックガード（透過・イベント吸収） */
+  /* クリックで停止しないためのクリックガード */
   .clickshield{position:absolute;inset:0;z-index:5;pointer-events:auto}
 
-  /* サブ：中央スライダー（モード=sliderのときのみ出す） */
+  /* 中央スライダー（常時。フェード時は非表示） */
   .slider-rail{position:absolute;inset:0;pointer-events:none;z-index:7}
   .split-line{position:absolute;top:0;bottom:0;left:var(--split);transform:translateX(-50%);width:2px;background:rgba(255,255,255,.92)}
   .handle{position:absolute;top:50%;left:var(--split);transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);pointer-events:auto;cursor:ew-resize}
-  .mode-fade .slider-rail{display:none} /* フェードがメイン */
+  .mode-fade .slider-rail{display:none}
 
   /* ローディング */
   .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.6));z-index:8;opacity:0;visibility:hidden;transition:.2s}
@@ -65,50 +68,50 @@
   .scrub::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:1px solid #00000030}
   .scrub::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:1px solid #00000030}
 
-  /* 操作群（比較スライダーは灰色） */
+  /* 操作群 */
   .controls{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:10px 2px}
   .controls button,.controls select,.controls input[type="range"]{background:#1b1f2a;color:#e8e8e8;border:1px solid #2a3142;border-radius:8px;padding:8px 10px;font-size:14px}
   .range{flex:1 1 220px;display:flex;align-items:center;gap:8px}
   #range{-webkit-appearance:none;appearance:none;width:100%;height:6px;background:var(--compare-bg);border-radius:999px}
   #range::-webkit-slider-thumb,#range::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid #00000030}
 
-  /* 全画面時の下部フェーダー（常時表示） */
+  /* 全画面時の下部フェーダー常時表示 */
   .fade-bottom{position:absolute;left:0;right:0;bottom:0;z-index:9;display:none;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(0deg,rgba(0,0,0,.65),rgba(0,0,0,0))}
   .fade-bottom input{flex:1 1 auto;height:6px}
-  body.fs .fade-bottom{display:flex;} /* フルスクリーン時に表示 */
+  body.fs .fade-bottom{display:flex;}
 </style>
 </head>
 <body>
   <header class="wrap">
-    <h1>過去 × 今｜YouTube 比較（フェード中心＆同期）</h1>
-    <p>フェードがメイン。必要に応じてモード切替で中央スライダー（サブ）も使用。再生・シークは2本を同期します。</p>
+    <h1>過去 × 今｜YouTube 比較（中央スライダー：左=過去／右=今）</h1>
+    <p>デフォルトは中央スライダー（自動デモあり）。必要に応じてフェードに切替可能。再生・シークは2本を同期します。</p>
   </header>
 
   <main class="wrap">
-    <section id="compare" class="compare mode-fade" aria-label="YouTube比較">
-      <!-- 上部ラベル＆ミニフェーダー -->
+    <section id="compare" class="compare mode-slider" aria-label="YouTube比較">
+      <!-- 上部ラベル＆ミニフェーダー（フェード時の補助） -->
       <div class="topband">
-        <div class="tag past"><span class="dot"></span><span>昔</span><span class="sub" id="stampPast">YouTube</span></div>
+        <div class="tag past"><span class="dot"></span><span>左：過去</span><span class="sub" id="stampPast">YouTube</span></div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <div class="mode-badge" id="modeBadge">モード：フェード</div>
-          <div class="fade-mini">
+          <div class="mode-badge" id="modeBadge">モード：スライダー</div>
+          <div class="fade-mini" id="fadeMini" style="display:none;">
             <span>昔</span>
             <input id="fadeInline" type="range" min="0" max="100" value="100" step="1" aria-label="フェード（昔↔今）">
             <span>今</span>
           </div>
         </div>
-        <div class="tag now"><span class="dot"></span><span>今</span><span class="sub" id="stampNow">YouTube</span></div>
+        <div class="tag now"><span class="dot"></span><span>右：今</span><span class="sub" id="stampNow">YouTube</span></div>
       </div>
 
       <!-- 下：昔 -->
       <div class="layer bottom"><div id="pastBox" class="ytbox"></div></div>
-      <!-- 上：今（フェード対象） -->
+      <!-- 上：今（スライダーでは右側／フェードではopacity） -->
       <div class="layer top" id="topLayer"><div id="nowBox" class="ytbox"></div></div>
 
-      <!-- クリックで停止させないシールド -->
+      <!-- クリックガード（停止防止） -->
       <div class="clickshield" id="clickshield"></div>
 
-      <!-- サブ：中央スライダー -->
+      <!-- 中央スライダー（デモ往復あり） -->
       <div class="slider-rail" aria-hidden="true">
         <div class="split-line" id="splitLine"></div>
         <div class="handle" id="handle" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-label="比較位置"></div>
@@ -135,7 +138,7 @@
       <div class="time" id="timeDur">--:--</div>
     </section>
 
-    <!-- 操作群（明示UI：再生・停止・コマ送り・逆再生） -->
+    <!-- 操作群（明示UI） -->
     <section class="controls" aria-label="再生コントロール">
       <button id="playBtn"   type="button" title="再生">▶︎ 再生</button>
       <button id="pauseBtn"  type="button" title="停止">⏸ 停止</button>
@@ -154,19 +157,19 @@
       </select>
 
       <div class="range">
-        <span id="rangeLabel">比較（サブ）：</span>
+        <span id="rangeLabel">比較（スライダー）：</span>
         <input id="range" type="range" min="0" max="100" value="50" step="0.1" aria-label="比較位置スライダー">
       </div>
 
-      <button id="modeBtn" type="button" title="フェード／スライダー切替">モード切替</button>
+      <button id="modeBtn" type="button" title="スライダー／フェード切替">モード切替</button>
       <button id="fsBtn" type="button" title="フルスクリーン">⛶ 全画面</button>
     </section>
   </main>
 
 <script>
 /* ====== 設定：動画ID（差し替え可） ====== */
-const YT_PAST_ID = 'twUhcvIGlpY';   // 昔
-const YT_NOW_ID  = 'FON4lib3hgQ';   // 今
+const YT_PAST_ID = 'twUhcvIGlpY';   // 昔（左）
+const YT_NOW_ID  = 'FON4lib3hgQ';   // 今（右）
 
 /* ====== 参照 ====== */
 const compare   = document.getElementById('compare');
@@ -174,6 +177,7 @@ const handle    = document.getElementById('handle');
 const range     = document.getElementById('range');
 const modeBtn   = document.getElementById('modeBtn');
 const modeBadge = document.getElementById('modeBadge');
+const fadeMini  = document.getElementById('fadeMini');
 const fadeInline= document.getElementById('fadeInline');
 const fadeBottomRange = document.getElementById('fadeBottomRange');
 const loading   = document.getElementById('loading');
@@ -190,32 +194,32 @@ const fsBtn     = document.getElementById('fsBtn');
 const clickshield= document.getElementById('clickshield');
 const fadeBottom = document.getElementById('fadeBottom');
 
-let mode='fade'; // 'fade' | 'slider'
+let mode='slider'; // 既定：スライダー
 let split=50;
 function setSplit(p){ split=Math.max(0,Math.min(100,p)); document.documentElement.style.setProperty('--split', split.toFixed(2)+'%'); handle.setAttribute('aria-valuenow', split.toFixed(1)); range.value=split; }
-function setFade(p){ const v=Math.max(0,Math.min(100,p))/100; document.documentElement.style.setProperty('--fade', v.toFixed(3)); fadeInline.value=Math.round(p); fadeBottomRange.value=Math.round(p); }
+function setFade(p){ const v=Math.max(0,Math.min(100,p))/100; document.documentElement.style.setProperty('--fade', v.toFixed(3)); if(fadeInline) fadeInline.value=Math.round(p); if(fadeBottomRange) fadeBottomRange.value=Math.round(p); }
 setSplit(50); setFade(100);
 
-/* ====== モード切替（フェードがメイン。スライダーはサブ） ====== */
+/* ====== モード切替 ====== */
 function applyMode(m){
   mode=m;
   compare.classList.toggle('mode-fade',   m==='fade');
   compare.classList.toggle('mode-slider', m==='slider');
   modeBadge.textContent='モード：'+(m==='fade'?'フェード':'スライダー');
-  document.getElementById('rangeLabel').textContent = (m==='fade'?'フェード（サブ）：':'比較（サブ）：');
+  document.getElementById('rangeLabel').textContent = (m==='fade'?'フェード：':'比較（スライダー）：');
+  fadeMini.style.display = (m==='fade') ? 'flex' : 'none';
 }
-applyMode('fade');
+applyMode('slider');
 modeBtn.addEventListener('click', ()=> applyMode(mode==='fade'?'slider':'fade'));
-[fakeInput=fadeInline, fadeBottomRange].forEach(inp=>{
-  inp.addEventListener?.('input', e=> setFade(parseFloat(e.target.value)));
-});
+if(fadeInline)      fadeInline.addEventListener('input', e=> setFade(parseFloat(e.target.value)));
+if(fadeBottomRange) fadeBottomRange.addEventListener('input', e=> setFade(parseFloat(e.target.value)));
 
-/* ====== サブスライダー（中央バー） ====== */
+/* ====== 中央スライダー（クリック含む） ====== */
 function clientXToPercent(clientX){
   const r=compare.getBoundingClientRect(); return (clientX-r.left)/r.width*100;
 }
 let dragging=false;
-function startDrag(){ dragging=true; document.body.style.cursor='ew-resize'; }
+function startDrag(){ dragging=true; document.body.style.cursor='ew-resize'; stopDemo(); }
 function moveDrag(e){
   if(!dragging) return;
   const x = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
@@ -229,32 +233,45 @@ handle.addEventListener('touchstart', e=>{e.preventDefault();startDrag();},{pass
 window.addEventListener('touchmove', moveDrag, {passive:false});
 window.addEventListener('touchend', endDrag);
 compare.addEventListener('pointerdown', e=>{
-  if(e.target!==handle){ const p=clientXToPercent(e.clientX); mode==='slider'?setSplit(p):setFade(p); }
+  if(e.target!==handle){ const p=clientXToPercent(e.clientX); mode==='slider'?setSplit(p):setFade(p); stopDemo(); }
 });
-range.addEventListener('input', e=>{ const p=parseFloat(e.target.value); mode==='slider'?setSplit(p):setFade(p); });
+range.addEventListener('input', e=>{ const p=parseFloat(e.target.value); mode==='slider'?setSplit(p):setFade(p); stopDemo(); });
 
-/* ====== YouTube IFrame API 読み込み ====== */
+/* ====== デモ往復（再生ボタンを押すまで） ====== */
+let demoRAF=null, demoDir=1, demoStart=null;
+function demoStep(ts){
+  if(!demoStart) demoStart=ts;
+  const dur=2600; // 2.6sで片道
+  const t=(ts-demoStart)%dur;
+  const k=t/dur; // 0..1
+  // 20%⇔80%を往復
+  const a=20, b=80;
+  const val = demoDir>0 ? (a + (b-a)*k) : (b - (b-a)*k);
+  setSplit(val);
+  if(k>=0.999){ demoDir*=-1; demoStart=ts; }
+  demoRAF=requestAnimationFrame(demoStep);
+}
+function startDemo(){ if(!demoRAF) demoRAF=requestAnimationFrame(demoStep); }
+function stopDemo(){ if(demoRAF){ cancelAnimationFrame(demoRAF); demoRAF=null; } }
+startDemo();
+
+/* ====== クリックで停止しない ====== */
+clickshield.addEventListener('click', ()=>{}); // no-op
+
+/* ====== フルスクリーン ====== */
+document.addEventListener('fullscreenchange', ()=>{ document.body.classList.toggle('fs', !!document.fullscreenElement); });
+fsBtn.addEventListener('click', async ()=>{ if(!document.fullscreenElement){ try{ await compare.requestFullscreen(); }catch(e){} } else { await document.exitFullscreen(); } });
+
+/* ====== YouTube IFrame API ====== */
 let pastPlayer, nowPlayer;
 let readyPast=false, readyNow=false;
 let rafId=null, tickTimer=null;
 let reverseRAF=null;
-const SYNC_EPS=0.20;  // ズレ閾値（秒）
-const PREBUFFER_FRAC=0.02; // 開始前の最低バッファ割合
+const SYNC_EPS=0.20;
+const PREBUFFER_FRAC=0.02;
 
 function showLoading(){ loading.classList.add('show'); }
 function hideLoading(){ loading.classList.remove('show'); }
-
-/* クリックで止まらない：プレイヤー上クリックはシールドに吸わせて何もしない */
-clickshield.addEventListener('click', ()=>{}); // no-op
-
-/* フルスクリーン時、bodyにクラス付与＋下部フェーダー表示 */
-document.addEventListener('fullscreenchange', ()=>{
-  document.body.classList.toggle('fs', !!document.fullscreenElement);
-});
-fsBtn.addEventListener('click', async ()=>{
-  if(!document.fullscreenElement){ try{ await compare.requestFullscreen(); }catch(e){} }
-  else{ await document.exitFullscreen(); }
-});
 
 /* 時刻UI */
 function formatTime(sec){
@@ -282,13 +299,13 @@ function seekBoth(t){
   updateTimeUI();
 }
 
-/* 厳しめ同期：rAF + 200ms補正、ズレが閾値超なら吸着 */
+/* 同期ループ（再生中のみ吸着） */
 function syncTick(){
   if(!(readyPast&&readyNow)) return;
   const tp=pastPlayer.getCurrentTime(), tn=nowPlayer.getCurrentTime();
   const dp=Math.abs(tp-tn);
   const np=nowPlayer.getPlayerState(), pp=pastPlayer.getPlayerState();
-  if(np===1 || pp===1){ // 再生中
+  if(np===1 || pp===1){
     if(dp>SYNC_EPS){ pastPlayer.seekTo(tn, true); }
   }
   updateTimeUI();
@@ -297,10 +314,11 @@ function syncTick(){
 function startSync(){ if(!rafId){ rafId=requestAnimationFrame(syncTick); } if(!tickTimer){ tickTimer=setInterval(updateTimeUI,200); } }
 function stopSync(){ if(rafId){ cancelAnimationFrame(rafId); rafId=null; } if(tickTimer){ clearInterval(tickTimer); tickTimer=null; } }
 
-/* 再生・停止・速度・コマ送り／戻し・逆再生 */
+/* 再生・停止・速度・コマ送り/戻し・逆再生 */
 function playBoth(){
   if(!(readyPast&&readyNow)) return;
   pastPlayer.playVideo(); nowPlayer.playVideo();
+  stopDemo(); // 再生開始でデモ終了
 }
 function pauseBoth(){ pastPlayer?.pauseVideo(); nowPlayer?.pauseVideo(); }
 playBtn.addEventListener('click', ()=> playBoth());
@@ -318,12 +336,12 @@ speedSel.addEventListener('change', ()=>{
 });
 scrub.addEventListener('input', e=> seekBoth(parseFloat(e.target.value)));
 
-/* コマ送り/戻し：1/30秒刻み（YouTubeは厳密フレーム制御不可） */
+/* コマ送り/戻し（1/30秒刻み） */
 const frameSec=1/30;
 document.getElementById('stepFwd').addEventListener('click', ()=>{ pauseBoth(); seekBoth((nowPlayer?.getCurrentTime()||0)+frameSec); });
 document.getElementById('stepBack').addEventListener('click', ()=>{ pauseBoth(); seekBoth((nowPlayer?.getCurrentTime()||0)-frameSec); });
 
-/* 逆再生：自前ループで時間を戻す（簡易） */
+/* 逆再生（簡易） */
 function reverseLoop(){
   const rate=parseFloat(speedSel.value)||1;
   const step=(1/60)*rate;
@@ -332,16 +350,12 @@ function reverseLoop(){
   if(t<=0){ stopReverse(); pauseBoth(); return; }
   reverseRAF=requestAnimationFrame(reverseLoop);
 }
-function startReverse(){ pauseBoth(); if(!reverseRAF){ reverseRAF=requestAnimationFrame(reverseLoop); document.getElementById('revBtn').textContent='⏹ 逆再生停止'; } }
+function startReverse(){ pauseBoth(); if(!reverseRAF){ reverseRAF=requestAnimationFrame(reverseLoop); document.getElementById('revBtn').textContent='⏹ 逆再生停止'; stopDemo(); } }
 function stopReverse(){ if(reverseRAF){ cancelAnimationFrame(reverseRAF); reverseRAF=null; document.getElementById('revBtn').textContent='↶ 逆再生'; } }
 document.getElementById('revBtn').addEventListener('click', ()=> reverseRAF?stopReverse():startReverse());
 
-/* 再生前の「読み込み時間差」対策：
-   - 両方が cued になってから操作可能化
-   - 再生要求時、両方の getVideoLoadedFraction() がしきい値を超えるまで待機
-   - その後 currentTime を合わせて同時再生
-*/
-async function waitPrebuffer(th=PREBUFFER_FRAC, timeout=5000){
+/* 再生前バッファ待機（読み込み時間差の緩和） */
+async function waitPrebuffer(th=PREBUFFER_FRAC, timeout=6000){
   const t0=performance.now();
   return new Promise(res=>{
     function check(){
@@ -354,53 +368,37 @@ async function waitPrebuffer(th=PREBUFFER_FRAC, timeout=5000){
     check();
   });
 }
-
-/* 再生ボタン押下 → 事前バッファ待ち → 同時再生（実際はAPI都合で「ほぼ同時」） */
 playBtn.addEventListener('click', async ()=>{
   if(!(readyPast&&readyNow)) return;
   showLoading();
-  await waitPrebuffer(PREBUFFER_FRAC, 6000); // しきい値・タイムアウト調整可
-  // 同時スタート：現在値を合わせ、両方 play。微ズレは syncTick で吸収。
+  await waitPrebuffer(PREBUFFER_FRAC, 6000);
   const t = Math.min(pastPlayer.getCurrentTime()||0, nowPlayer.getCurrentTime()||0);
   seekBoth(t);
   hideLoading();
-  playBoth();
 });
 
-/* YouTube IFrame API 挿入 */
+/* YouTube IFrame API 読み込み＆プレイヤー生成 */
 const tag=document.createElement('script');
 tag.src="https://www.youtube.com/iframe_api";
 document.head.appendChild(tag);
-
-/* API Ready → プレイヤー生成（controls=0 / playsinline=1 / disablekb=1） */
 window.onYouTubeIframeAPIReady = function(){
-  const playerVars = {
-    playsinline:1, controls:0, rel:0, fs:0, iv_load_policy:3, disablekb:1, origin: location.origin
-  };
+  const playerVars = { playsinline:1, controls:0, rel:0, fs:0, iv_load_policy:3, disablekb:1, origin: location.origin };
   showLoading();
   pastPlayer = new YT.Player('pastBox', {
     videoId: YT_PAST_ID, width:'100%', height:'100%', playerVars,
-    events:{
-      onReady: e=>{ readyPast=true; e.target.mute(); checkReady(); },
-      onStateChange: onStateChange
-    }
+    events:{ onReady: e=>{ readyPast=true; e.target.mute(); checkReady(); }, onStateChange: onStateChange }
   });
   nowPlayer = new YT.Player('nowBox', {
     videoId: YT_NOW_ID, width:'100%', height:'100%', playerVars,
-    events:{
-      onReady: e=>{ readyNow=true; e.target.mute(); checkReady(); },
-      onStateChange: onStateChange
-    }
+    events:{ onReady: e=>{ readyNow=true; e.target.mute(); checkReady(); }, onStateChange: onStateChange }
   });
 };
-
 function onStateChange(ev){
-  const s=ev.data; // -1 未開始,0 終了,1 再生,2 停止,3 バッファ,5 cued
+  const s=ev.data;
   if(s===3){ showLoading(); }
   if(s===1||s===2||s===5){ hideLoading(); }
-  if(s===0){ pauseBoth(); } // どちらか終了で止める
+  if(s===0){ pauseBoth(); }
 }
-
 function checkReady(){
   if(readyPast && readyNow){
     hideLoading();
@@ -409,11 +407,6 @@ function checkReady(){
     startSync();
   }
 }
-
-/* 全画面の下部フェーダーと上部ミニフェーダーを常に同期 */
-fadeInline.addEventListener('input', e=> setFade(parseFloat(e.target.value)));
-fadeBottomRange.addEventListener('input', e=> setFade(parseFloat(e.target.value)));
-
 </script>
 </body>
 </html>
