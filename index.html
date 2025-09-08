@@ -33,15 +33,14 @@
   .mode-slider .top{opacity:1;clip-path:inset(0 0 0 var(--split))}
   .mode-fade   .top{opacity:var(--fade);transition:opacity .06s linear;clip-path:inset(0 0 0 0)}
 
-  /* ラベル帯 & ミニフェーダー（上） */
-  .topband{position:absolute;left:0;right:0;top:0;z-index:6;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.05))}
-  .tag{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(0,0,0,.4)}
-  .dot{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.9}
-  .past .dot{background:#9ec1ff}.now .dot{background:#9dffb0}
-  .sub{opacity:.9}
+  /* 上部バー（モード表示のみ残して簡素化） */
+  .topband{
+    position:absolute;left:0;right:0;top:0;z-index:6;
+    display:flex;justify-content:center;align-items:center;
+    gap:8px;padding:8px 12px;
+    background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.05))
+  }
   .mode-badge{padding:6px 10px;border-radius:999px;background:#1b1f2a;border:1px solid #2a3142;font-size:12px}
-  .fade-mini{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#1b1f2a;border:1px solid #2a3142}
-  .fade-mini input{width:140px;height:6px}
 
   /* クリックで停止しないためのクリックガード */
   .clickshield{position:absolute;inset:0;z-index:5;pointer-events:auto}
@@ -75,10 +74,20 @@
   #range{-webkit-appearance:none;appearance:none;width:100%;height:6px;background:var(--compare-bg);border-radius:999px}
   #range::-webkit-slider-thumb,#range::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid #00000030}
 
-  /* 全画面時の下部フェーダー常時表示 */
-  .fade-bottom{position:absolute;left:0;right:0;bottom:0;z-index:9;display:none;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(0deg,rgba(0,0,0,.65),rgba(0,0,0,0))}
+  /* フェード用：画面中央下の大きなフェーダー（フェード時のみ表示） */
+  .fade-bottom{
+    position:absolute;left:0;right:0;bottom:0;z-index:9;
+    display:none;align-items:center;justify-content:center;gap:10px;
+    padding:12px 14px;background:linear-gradient(0deg,rgba(0,0,0,.70),rgba(0,0,0,0));
+  }
+  .fade-bottom .wrap2{
+    width:min(720px,92%);display:flex;align-items:center;gap:12px;
+    background:rgba(0,0,0,.45);border:1px solid #2a3142;border-radius:999px;padding:10px 14px;
+  }
+  .fade-bottom .wrap2 span{font-size:12px;opacity:.95}
   .fade-bottom input{flex:1 1 auto;height:6px}
-  body.fs .fade-bottom{display:flex;}
+  .mode-fade .fade-bottom{display:flex;} /* ← フェードモード時に常に表示 */
+  /* 全画面でも当然見える（上記displayでカバー） */
 
   /* 初回注釈ガイド */
   .guide{
@@ -133,18 +142,9 @@
 
   <main class="wrap">
     <section id="compare" class="compare mode-slider" aria-label="YouTube比較">
-      <!-- 上部ラベル＆ミニフェーダー（フェード時の補助） -->
+      <!-- 上部はモード表示のみ（左右ラベルは非表示化） -->
       <div class="topband">
-        <div class="tag past"><span class="dot"></span><span>左：過去</span><span class="sub" id="stampPast">YouTube</span></div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div class="mode-badge" id="modeBadge">モード：スライダー</div>
-          <div class="fade-mini" id="fadeMini" style="display:none;">
-            <span>昔</span>
-            <input id="fadeInline" type="range" min="0" max="100" value="100" step="1" aria-label="フェード（昔↔今）">
-            <span>今</span>
-          </div>
-        </div>
-        <div class="tag now"><span class="dot"></span><span>右：今</span><span class="sub" id="stampNow">YouTube</span></div>
+        <div class="mode-badge" id="modeBadge">モード：スライダー</div>
       </div>
 
       <!-- 下：昔 -->
@@ -161,14 +161,16 @@
         <div class="handle" id="handle" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-label="比較位置"></div>
       </div>
 
-      <!-- ローディング（動画状態に応じて） -->
+      <!-- ローディング -->
       <div class="loading" id="loading"><div class="spinner"></div></div>
 
-      <!-- 全画面下部フェーダー（常時） -->
+      <!-- フェード用：画面中央下に常設（フェード時のみ表示） -->
       <div class="fade-bottom" id="fadeBottom">
-        <span>昔</span>
-        <input id="fadeBottomRange" type="range" min="0" max="100" value="100" step="1" aria-label="フェード（昔↔今）全画面用">
-        <span>今</span>
+        <div class="wrap2">
+          <span>昔</span>
+          <input id="fadeBottomRange" type="range" min="0" max="100" value="100" step="1" aria-label="フェード（昔↔今）">
+          <span>今</span>
+        </div>
       </div>
 
       <!-- 初回注釈ガイド -->
@@ -176,7 +178,7 @@
         <div class="box">
           <h3>操作ガイド</h3>
           <div class="bullet">🖱️ スライダーを<strong>ドラッグ</strong>して「過去 ↔ 今」を比較できます。</div>
-          <div class="bullet">🔄 <strong>モード切替</strong>で、フェード比較にも変更できます。</div>
+          <div class="bullet">🔄 <strong>モード切替</strong>で、フェード比較にも変更できます（画面下のスライダー）。</div>
           <div class="bullet">▶️ <strong>再生</strong>を押すと、2本のYouTubeが同期再生されます。</div>
           <button id="guideClose">OK</button>
         </div>
@@ -255,8 +257,6 @@ const handle    = document.getElementById('handle');
 const range     = document.getElementById('range');
 const modeBtn   = document.getElementById('modeBtn');
 const modeBadge = document.getElementById('modeBadge');
-const fadeMini  = document.getElementById('fadeMini');
-const fadeInline= document.getElementById('fadeInline');
 const fadeBottomRange = document.getElementById('fadeBottomRange');
 const loading   = document.getElementById('loading');
 const timeCur   = document.getElementById('timeCur');
@@ -288,7 +288,7 @@ const preNote   = document.getElementById('preNote');
 let mode='slider'; // 既定：スライダー
 let split=50;
 function setSplit(p){ split=Math.max(0,Math.min(100,p)); document.documentElement.style.setProperty('--split', split.toFixed(2)+'%'); handle.setAttribute('aria-valuenow', split.toFixed(1)); range.value=split; }
-function setFade(p){ const v=Math.max(0,Math.min(100,p))/100; document.documentElement.style.setProperty('--fade', v.toFixed(3)); if(fadeInline) fadeInline.value=Math.round(p); if(fadeBottomRange) fadeBottomRange.value=Math.round(p); }
+function setFade(p){ const v=Math.max(0,Math.min(100,p))/100; document.documentElement.style.setProperty('--fade', v.toFixed(3)); if(fadeBottomRange) fadeBottomRange.value=Math.round(p); }
 setSplit(50); setFade(100);
 
 /* ====== モード切替 ====== */
@@ -298,11 +298,9 @@ function applyMode(m){
   compare.classList.toggle('mode-slider', m==='slider');
   modeBadge.textContent='モード：'+(m==='fade'?'フェード':'スライダー');
   document.getElementById('rangeLabel').textContent = (m==='fade'?'フェード：':'比較（スライダー）：');
-  fadeMini.style.display = (m==='fade') ? 'flex' : 'none';
 }
 applyMode('slider');
 modeBtn.addEventListener('click', ()=> applyMode(mode==='fade'?'slider':'fade'));
-if(fadeInline)      fadeInline.addEventListener('input', e=> setFade(parseFloat(e.target.value)));
 if(fadeBottomRange) fadeBottomRange.addEventListener('input', e=> setFade(parseFloat(e.target.value)));
 
 /* ====== 中央スライダー（クリック含む） ====== */
@@ -419,7 +417,6 @@ function playBoth(){
 function pauseBoth(){ pastPlayer?.pauseVideo(); nowPlayer?.pauseVideo(); }
 playBtn.addEventListener('click', ()=>{
   if(!(readyPast && readyNow)) return;
-  // プレロード表示中なら案内だけ（下のpreStartで実際に再生）
   if(preload.classList.contains('show')){
     preNote.textContent = '読み込み準備中です。下のボタンから再生できます。';
     return;
@@ -446,6 +443,7 @@ document.getElementById('stepFwd').addEventListener('click', ()=>{ pauseBoth(); 
 document.getElementById('stepBack').addEventListener('click', ()=>{ pauseBoth(); seekBoth((nowPlayer?.getCurrentTime()||0)-frameSec); });
 
 /* 逆再生（簡易） */
+let reverseRAF=null;
 function reverseLoop(){
   const rate=parseFloat(speedSel.value)||1;
   const step=(1/60)*rate;
