@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>YouTube 比較（デフォルト：中央スライダー／左=過去・右=今／デモ往復）</title>
+<title>YouTube 比較（中央スライダー：左=過去／右=今／デモ往復＋注釈ガイド）</title>
 <style>
   :root{
     --split:50%;
@@ -30,7 +30,7 @@
      - スライダー：上(今)を「右側だけ」見せる → 左=過去、右=今
      - フェード：上(今)の不透明度で比較（中央バー非表示）
   */
-  .mode-slider .top{opacity:1;clip-path:inset(0 0 0 var(--split))} /* ←右側を表示 */
+  .mode-slider .top{opacity:1;clip-path:inset(0 0 0 var(--split))}
   .mode-fade   .top{opacity:var(--fade);transition:opacity .06s linear;clip-path:inset(0 0 0 0)}
 
   /* ラベル帯 & ミニフェーダー（上） */
@@ -46,7 +46,7 @@
   /* クリックで停止しないためのクリックガード */
   .clickshield{position:absolute;inset:0;z-index:5;pointer-events:auto}
 
-  /* 中央スライダー（常時。フェード時は非表示） */
+  /* 中央スライダー（デモ往復あり／フェード時は非表示） */
   .slider-rail{position:absolute;inset:0;pointer-events:none;z-index:7}
   .split-line{position:absolute;top:0;bottom:0;left:var(--split);transform:translateX(-50%);width:2px;background:rgba(255,255,255,.92)}
   .handle{position:absolute;top:50%;left:var(--split);transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);pointer-events:auto;cursor:ew-resize}
@@ -79,6 +79,30 @@
   .fade-bottom{position:absolute;left:0;right:0;bottom:0;z-index:9;display:none;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(0deg,rgba(0,0,0,.65),rgba(0,0,0,0))}
   .fade-bottom input{flex:1 1 auto;height:6px}
   body.fs .fade-bottom{display:flex;}
+
+  /* 初回注釈ガイド */
+  .guide{
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.55);
+    color:#fff;z-index:20;
+    opacity:0;visibility:hidden;transition:.3s;
+  }
+  .guide.show{opacity:1;visibility:visible;}
+  .guide .box{
+    background:rgba(0,0,0,.8);
+    padding:16px 20px;border-radius:12px;
+    max-width:92%;text-align:center;
+    font-size:14px;line-height:1.6;
+    box-shadow:0 8px 30px rgba(0,0,0,.35);
+  }
+  .guide .box h3{margin:0 0 8px;font-size:16px;}
+  .guide .bullet{margin:.25em 0}
+  .guide button{
+    margin-top:12px;padding:6px 12px;
+    border:1px solid #2a3142;border-radius:8px;
+    background:#1b1f2a;color:#fff;cursor:pointer;
+  }
 </style>
 </head>
 <body>
@@ -125,6 +149,17 @@
         <span>昔</span>
         <input id="fadeBottomRange" type="range" min="0" max="100" value="100" step="1" aria-label="フェード（昔↔今）全画面用">
         <span>今</span>
+      </div>
+
+      <!-- 初回注釈ガイド -->
+      <div class="guide" id="guide">
+        <div class="box">
+          <h3>操作ガイド</h3>
+          <div class="bullet">🖱️ スライダーを<strong>ドラッグ</strong>して「過去 ↔ 今」を比較できます。</div>
+          <div class="bullet">🔄 <strong>モード切替</strong>で、フェード比較にも変更できます。</div>
+          <div class="bullet">▶️ <strong>再生</strong>を押すと、2本のYouTubeが同期再生されます。</div>
+          <button id="guideClose">OK</button>
+        </div>
       </div>
     </section>
 
@@ -193,6 +228,9 @@ const speedSel  = document.getElementById('speedSel');
 const fsBtn     = document.getElementById('fsBtn');
 const clickshield= document.getElementById('clickshield');
 const fadeBottom = document.getElementById('fadeBottom');
+
+const guide = document.getElementById('guide');
+const guideClose = document.getElementById('guideClose');
 
 let mode='slider'; // 既定：スライダー
 let split=50;
@@ -405,8 +443,21 @@ function checkReady(){
     updateDuration();
     updateTimeUI();
     startSync();
+    // 初回ガイド（localStorageで1度だけ表示）
+    if(!localStorage.getItem('ytCompareGuideSeen')){
+      guide.classList.add('show');
+    }
   }
 }
+
+/* 初回注釈ガイド：閉じるで記録＆デモ停止 */
+function hideGuide(){
+  guide.classList.remove('show');
+  localStorage.setItem('ytCompareGuideSeen','1');
+  stopDemo();
+}
+guideClose.addEventListener('click', hideGuide);
+
 </script>
 </body>
 </html>
