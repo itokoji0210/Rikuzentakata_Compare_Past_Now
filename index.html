@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>YouTube 比較（フェード＋サブスライダー／同期・タイムライン）</title>
+<style>
+  :root{
+    --split:50%;
+    --fade:1;                 /* 1=今（上100%） / 0=過去（上0%） */
+    --accent:#2b7cff;
+    --radius:12px;
+    --timeline:#2b7cff;       /* タイムライン(青) */
+    --timeline-bg:#1b1f2a;    /* タイムライン背景 */
+    --timeline-border:#2a3142;
+    --compare-bg:#2a2f3d;     /* 比較スライダー(灰) */
+  }
+  body{margin:0;background:#0f1115;color:#e8e8e8;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif}
+  header{padding:14px 16px 6px}
+  h1{font-size:clamp(16px,2.6vw,20px);margin:0 0 6px}
+  p{margin:0;font-size:12px;opacity:.85}
+  .wrap{max-width:1200px;margin:10px auto 18px;padding:0 12px}
+
+  .compare{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:var(--radius);overflow:hidden}
+  .layer{position:absolute;inset:0}
+  .ytbox{position:absolute;inset:0}
+  /* 上レイヤ（今）をフェード or スライス */
+  .mode-fade   .top{opacity:var(--fade);transition:opacity .06s linear;clip-path:inset(0 0 0 0)}
+  .mode-slider .top{opacity:1;clip-path:inset(0 calc(100% - var(--split)) 0 0)} /* サブ（中央バー） */
+
+  /* ラベル帯＋フェード用ミニフェーダー */
+  .topband{position:absolute;left:0;right:0;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.05))}
+  .tag{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(0,0,0,.4)}
+  .dot{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.9}
+  .past .dot{background:#9ec1ff}.now .dot{background:#9dffb0}
+  .sub{opacity:.9}
+  .mode-badge{padding:6px 10px;border-radius:999px;background:#1b1f2a;border:1px solid #2a3142;font-size:12px}
+  .fade-mini{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#1b1f2a;border:1px solid #2a3142}
+  .fade-mini input{width:140px;height:6px}
+
+  /* サブ：中央スライダーUI（モード=sliderのときだけ出す） */
+  .slider-rail{position:absolute;inset:0;pointer-events:none;z-index:4}
+  .split-line{position:absolute;top:0;bottom:0;left:var(--split);transform:translateX(-50%);width:2px;background:rgba(255,255,255,.92)}
+  .handle{position:absolute;top:50%;left:var(--split);transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);pointer-events:auto;cursor:ew-resize}
+  .mode-fade .slider-rail{display:none} /* フェードがメイン */
+
+  /* ローディング */
+  .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.6));z-index:6;opacity:0;visibility:hidden;transition:.2s}
+  .loading.show{opacity:1;visibility:visible}
+  .spinner{width:36px;height:36px;border:3px solid #ffffff40;border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* タイムライン（再生位置：青／バッファも表示） */
+  .timeline{display:flex;align-items:center;gap:8px;margin:8px 0 2px;font-size:12px}
+  .time{min-width:72px;text-align:center;font-variant-numeric:tabular-nums}
+  .scrub-wrap{position:relative;flex:1 1 auto}
+  .buffer{position:absolute;inset:auto 0 0 0;top:50%;height:6px;transform:translateY(-50%);background:var(--timeline-bg);border:1px solid var(--timeline-border);border-radius:999px;overflow:hidden}
+  .buffer>.bar{height:100%;width:0%;background:linear-gradient(90deg,#375a9f,#2b7cff)}
+  .scrub{-webkit-appearance:none;appearance:none;width:100%;height:6px;background:transparent;position:relative}
+  .scrub::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:1px solid #00000030}
+  .scrub::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:1px solid #00000030}
+
+  /* コントロール（比較スライダーは灰） */
+  .controls{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:10px 2px}
+  .controls button,.controls select,.controls input[type="range"]{background:#1b1f2a;color:#e8e8e8;border:1px solid #2a3142;border-radius:8px;padding:8px 10px;font-size:14px}
+  .range{flex:1 1 220px;display:flex;align-items:center;gap:8px}
+  #range{-webkit-appearance:none;appearance:none;width:100%;height:6px;background:var(--compare-bg);border-radius:999px}
+  #range::-webkit-slider-thumb,#range::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid #00000030}
+</style>
+</head>
+<body>
+  <header class="wrap">
+    <h1>過去 × 今｜YouTube 比較（フェード・同期・タイムライン）</h1>
+    <p>メインはフェード比較。必要に応じてモード切替で中央スライダー（サブ）も使用。再生・シークは2本を同期します。</p>
+  </header>
+
+  <main class="wrap">
+    <section id="compare" class="compare mode-fade" aria-label="YouTube比較">
+      <!-- 上部ラベル＆ミニフェーダー（フェード用） -->
+      <div class="topband">
+        <div class="tag past"><span class="dot"></span><span>過去</span><span class="sub" id="stampPast"></span></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="mode-badge" id="modeBadge">モード：フェード</div>
+          <div class="fade-mini">
+            <span>過去</span>
+            <input id="fadeInline" type="range" min="0" max="100" value="100" step="1" aria-label="フェード（過去↔今）">
+            <span>今</span>
+          </div>
+        </div>
+        <div class="tag now"><span class="dot"></span><span>今</span><span class="sub" id="stampNow"></span></div>
+      </div>
+
+      <!-- 下：過去 -->
+      <div class="layer bottom">
+        <div id="pastBox" class="ytbox"></div>
+      </div>
+
+      <!-- 上：今（フェード対象） -->
+      <div class="layer top" id="topLayer">
+        <div id="nowBox" class="ytbox"></div>
+      </div>
+
+      <!-- サブ：中央スライダー（モード切替で使用） -->
+      <div class="slider-rail" aria-hidden="true">
+        <div class="split-line" id="splitLine"></div>
+        <div class="handle" id="handle" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-label="比較位置"></div>
+      </div>
+
+      <!-- ローディング -->
+      <div class="loading" id="loading"><div class="spinner"></div></div>
+    </section>
+
+    <!-- タイムライン（青） -->
+    <section class="timeline" aria-label="タイムライン">
+      <div class="time" id="timeCur">00:00</div>
+      <div class="scrub-wrap">
+        <div class="buffer"><div class="bar" id="bufferBar"></div></div>
+        <input id="scrub" class="scrub" type="range" min="0" max="1" step="0.0001" value="0" aria-label="再生位置">
+      </div>
+      <div class="time" id="timeDur">--:--</div>
+    </section>
+
+    <!-- 操作群 -->
+    <section class="controls" aria-label="再生コントロール">
+      <button id="playBtn" type="button" title="再生/一時停止（Space）">▶︎ 再生</button>
+      <button id="restartBtn" type="button">↺ 先頭</button>
+      <button id="muteBtn" type="button">🔇 ミュート</button>
+      <select id="speedSel" title="再生速度">
+        <option value="0.25">0.25×</option>
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="1.5">1.5×</option>
+        <option value="2">2×</option>
+      </select>
+
+      <div class="range">
+        <span id="rangeLabel">比較位置（サブ）：</span>
+        <input id="range" type="range" min="0" max="100" value="50" step="0.1" aria-label="比較位置スライダー">
+      </div>
+
+      <button id="modeBtn" type="button" title="フェード／スライダー切替">モード切替</button>
+      <button id="fsBtn" type="button" title="フルスクリーン">⛶ 全画面</button>
+    </section>
+  </main>
+
+  <!-- YouTube IFrame Player API を非同期ロード -->
+  <script>
+    // 動画ID（差し替え可）
+    const YT_PAST_ID = 'twUhcvIGlpY';   // 昔
+    const YT_NOW_ID  = 'FON4lib3hgQ';   // 今
+
+    // UI要素
+    const compare   = document.getElementById('compare');
+    const handle    = document.getElementById('handle');
+    const range     = document.getElementById('range');
+    const modeBtn   = document.getElementById('modeBtn');
+    const modeBadge = document.getElementById('modeBadge');
+    const fadeInline= document.getElementById('fadeInline');
+    const loading   = document.getElementById('loading');
+    const timeCur   = document.getElementById('timeCur');
+    const timeDur   = document.getElementById('timeDur');
+    const scrub     = document.getElementById('scrub');
+    const bufferBar = document.getElementById('bufferBar');
+    const playBtn   = document.getElementById('playBtn');
+    const restartBtn= document.getElementById('restartBtn');
+    const muteBtn   = document.getElementById('muteBtn');
+    const speedSel  = document.getElementById('speedSel');
+    const fsBtn     = document.getElementById('fsBtn');
+
+    let mode = 'fade'; // 'fade' | 'slider'
+    let split = 50;
+    function setSplit(p){ split=Math.max(0,Math.min(100,p)); document.documentElement.style.setProperty('--split', split.toFixed(2)+'%'); handle.setAttribute('aria-valuenow', split.toFixed(1)); range.value=split; }
+    function setFade(p){ const v=Math.max(0,Math.min(100,p))/100; document.documentElement.style.setProperty('--fade', v.toFixed(3)); fadeInline.value=Math.round(p); range.value=p; }
+    setSplit(50); setFade(100);
+
+    function applyMode(m){
+      mode=m;
+      compare.classList.toggle('mode-fade',   m==='fade');
+      compare.classList.toggle('mode-slider', m==='slider');
+      modeBadge.textContent = 'モード：' + (m==='fade' ? 'フェード' : 'スライダー');
+      document.getElementById('rangeLabel').textContent = m==='fade' ? 'フェード（サブ）：' : '比較位置（サブ）：';
+    }
+    applyMode('fade');
+    modeBtn.addEventListener('click', ()=> applyMode(mode==='fade'?'slider':'fade'));
+    fadeInline.addEventListener('input', e=> setFade(parseFloat(e.target.value)));
+
+    // サブスライダー（中央バー）
+    function clientXToPercent(clientX){
+      const r=compare.getBoundingClientRect(); return (clientX-r.left)/r.width*100;
+    }
+    let dragging=false;
+    function startDrag(){ dragging=true; document.body.style.cursor='ew-resize'; }
+    function moveDrag(e){
+      if(!dragging) return;
+      const x = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+      mode==='slider' ? setSplit(clientXToPercent(x)) : setFade(clientXToPercent(x));
+    }
+    function endDrag(){ dragging=false; document.body.style.cursor=''; }
+    handle.addEventListener('mousedown', startDrag);
+    window.addEventListener('mousemove', moveDrag, {passive:true});
+    window.addEventListener('mouseup', endDrag);
+    handle.addEventListener('touchstart', e=>{e.preventDefault();startDrag();},{passive:false});
+    window.addEventListener('touchmove', moveDrag, {passive:false});
+    window.addEventListener('touchend', endDrag);
+    compare.addEventListener('pointerdown', e=>{
+      if(e.target!==handle){ const p=clientXToPercent(e.clientX); mode==='slider'?setSplit(p):setFade(p); }
+    });
+    range.addEventListener('input', e=>{ const p=parseFloat(e.target.value); mode==='slider'?setSplit(p):setFade(p); });
+
+    // YouTube API ロード
+    let pastPlayer, nowPlayer;
+    let readyPast=false, readyNow=false, syncing=false, rafId=null, tickTimer=null;
+
+    function showLoading(){ loading.classList.add('show'); }
+    function hideLoading(){ loading.classList.remove('show'); }
+
+    function formatTime(sec){
+      if(!isFinite(sec)) return '--:--';
+      const s=Math.max(0,Math.floor(sec)), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), r=s%60;
+      return h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}` : `${m}:${String(r).padStart(2,'0')}`;
+    }
+
+    function updateDuration(){
+      const d=Math.min(pastPlayer?.getDuration()||0, nowPlayer?.getDuration()||0);
+      if(d>0){ timeDur.textContent=formatTime(d); scrub.max=d; }
+    }
+    function updateTimeUI(){
+      const t=Math.min(pastPlayer?.getCurrentTime()||0, nowPlayer?.getCurrentTime()||0);
+      const d=Math.min(pastPlayer?.getDuration()||0, nowPlayer?.getDuration()||0);
+      timeCur.textContent=formatTime(t);
+      if(d>0){ scrub.value=t; }
+      // バッファ（読み込み割合は nowPlayer ベース）
+      const frac = nowPlayer?.getVideoLoadedFraction ? nowPlayer.getVideoLoadedFraction() : 0;
+      bufferBar.style.width = Math.max(0, Math.min(100, frac*100)) + '%';
+    }
+
+    function seekBoth(t){
+      const d=Math.min(pastPlayer?.getDuration()||0, nowPlayer?.getDuration()||0);
+      const clamped=Math.max(0, Math.min(d||0, t));
+      pastPlayer?.seekTo(clamped, true);
+      nowPlayer?.seekTo(clamped, true);
+      updateTimeUI();
+    }
+
+    // 同期：差が0.25秒超なら追随
+    const SYNC_EPS=0.25;
+    function syncTick(){
+      if(!readyPast||!readyNow) return;
+      const tp=pastPlayer.getCurrentTime(), tn=nowPlayer.getCurrentTime();
+      const dp = Math.abs(tp-tn);
+      if(pastPlayer.getPlayerState()===1 || nowPlayer.getPlayerState()===1){ // 再生中
+        if(dp>SYNC_EPS){
+          // 「今」をマスターに寄せる（用途次第で逆もOK）
+          pastPlayer.seekTo(tn, true);
+        }
+      }
+      updateTimeUI();
+      rafId = requestAnimationFrame(syncTick);
+    }
+    function startSync(){ if(!rafId){ rafId=requestAnimationFrame(syncTick); } if(!tickTimer){ tickTimer=setInterval(updateTimeUI,200); } }
+    function stopSync(){ if(rafId){ cancelAnimationFrame(rafId); rafId=null; } if(tickTimer){ clearInterval(tickTimer); tickTimer=null; } }
+
+    // 再生制御
+    function playBoth(){
+      if(!readyPast||!readyNow) return;
+      nowPlayer.playVideo(); pastPlayer.playVideo();
+      playBtn.textContent='⏸ 一時停止';
+    }
+    function pauseBoth(){
+      nowPlayer.pauseVideo(); pastPlayer.pauseVideo();
+      playBtn.textContent='▶︎ 再生';
+    }
+
+    playBtn.addEventListener('click', ()=>{
+      const s = nowPlayer?.getPlayerState?.();
+      (s!==1) ? playBoth() : pauseBoth();
+    });
+    restartBtn.addEventListener('click', ()=> seekBoth(0));
+    muteBtn.addEventListener('click', ()=>{
+      const muted = nowPlayer?.isMuted?.();
+      if(muted){ nowPlayer.unMute(); pastPlayer.unMute(); muteBtn.textContent='🔇 ミュート'; }
+      else{ nowPlayer.mute(); pastPlayer.mute(); muteBtn.textContent='🔊 ミュート解除'; }
+    });
+    speedSel.addEventListener('change', ()=>{
+      const r=parseFloat(speedSel.value)||1;
+      nowPlayer?.setPlaybackRate?.(r);
+      pastPlayer?.setPlaybackRate?.(r);
+    });
+    // タイムラインでドラッグシーク
+    let scrubbing=false;
+    scrub.addEventListener('input', e=>{ scrubbing=true; seekBoth(parseFloat(e.target.value)); });
+    scrub.addEventListener('change', ()=>{ scrubbing=false; });
+
+    // フルスクリーン（コンテナ）
+    fsBtn.addEventListener('click', async ()=>{
+      if(!document.fullscreenElement){ try{ await compare.requestFullscreen(); }catch(e){} }
+      else{ await document.exitFullscreen(); }
+    });
+
+    // IFrame API スクリプトを挿入
+    const tag=document.createElement('script');
+    tag.src="https://www.youtube.com/iframe_api"; // 公式API
+    document.head.appendChild(tag);
+
+    // API Ready コールバックはグローバルに必要
+    window.onYouTubeIframeAPIReady = function(){
+      const playerVars = {
+        // 重要: enablejsapi は API 側で自動付与される。playsinline=1 でモバイルのインライン再生
+        playsinline: 1, controls: 0, rel: 0, fs: 0, iv_load_policy: 3, disablekb: 1,
+        // modestbranding は現在ほぼ効果なし（非推奨扱い）。→ 未指定
+        origin: location.origin
+      };
+      showLoading();
+      pastPlayer = new YT.Player('pastBox', {
+        videoId: YT_PAST_ID, width:'100%', height:'100%', playerVars,
+        events:{
+          'onReady': (e)=>{ readyPast=true; e.target.mute(); checkReady(); },
+          'onStateChange': onStateChange
+        }
+      });
+      nowPlayer = new YT.Player('nowBox', {
+        videoId: YT_NOW_ID, width:'100%', height:'100%', playerVars,
+        events:{
+          'onReady': (e)=>{ readyNow=true; e.target.mute(); checkReady(); },
+          'onStateChange': onStateChange
+        }
+      });
+    };
+
+    function onStateChange(ev){
+      const s = ev.data; // -1 未開始, 0 終了, 1 再生, 2 一時停止, 3 バッファ, 5 cued
+      if(s===3){ showLoading(); }
+      if(s===1||s===2||s===0){ hideLoading(); }
+      if(s===0){ pauseBoth(); } // どちらかが終端→両方停止
+    }
+
+    function checkReady(){
+      if(readyPast && readyNow){
+        hideLoading();
+        updateDuration();
+        updateTimeUI();
+        startSync();
+        // 初期はミュートかつ停止表示
+        playBtn.textContent='▶︎ 再生';
+        muteBtn.textContent='🔊 ミュート解除'; // ボタン表示はトグル動作に合わせる
+      }
+    }
+
+    // キーボードショートカット: Space=再生/停止
+    window.addEventListener('keydown', (e)=>{
+      if(['INPUT','TEXTAREA','SELECT','BUTTON'].includes(e.target.tagName)) return;
+      if(e.code==='Space'){ e.preventDefault(); const s=nowPlayer?.getPlayerState?.(); (s!==1)?playBoth():pauseBoth(); }
+    });
+
+    // スタンプ（年など）— 簡易：IDと同じで空にしておく or 固定文言
+    document.getElementById('stampPast').textContent = 'YouTube';
+    document.getElementById('stampNow').textContent  = 'YouTube';
+  </script>
+</body>
+</html>
