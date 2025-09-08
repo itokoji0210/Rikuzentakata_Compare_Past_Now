@@ -443,8 +443,7 @@ document.getElementById('stepFwd').addEventListener('click', ()=>{ pauseBoth(); 
 document.getElementById('stepBack').addEventListener('click', ()=>{ pauseBoth(); seekBoth((nowPlayer?.getCurrentTime()||0)-frameSec); });
 
 /* 逆再生（簡易） */
-let reverseRAF=null;
-function reverseLoop(){
+  function reverseLoop(){
   const rate=parseFloat(speedSel.value)||1;
   const step=(1/60)*rate;
   const t=Math.max(0,(nowPlayer?.getCurrentTime()||0)-step);
