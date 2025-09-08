@@ -345,4 +345,75 @@ async function waitPrebuffer(th=PREBUFFER_FRAC, timeout=5000){
   const t0=performance.now();
   return new Promise(res=>{
     function check(){
-      const okPast = (pastPlayer?.getVideoLo
+      const okPast = (pastPlayer?.getVideoLoadedFraction?.()||0) >= th;
+      const okNow  = (nowPlayer ?.getVideoLoadedFraction?.()||0) >= th;
+      if(okPast && okNow) return res(true);
+      if(performance.now()-t0>timeout) return res(false);
+      setTimeout(check, 100);
+    }
+    check();
+  });
+}
+
+/* 再生ボタン押下 → 事前バッファ待ち → 同時再生（実際はAPI都合で「ほぼ同時」） */
+playBtn.addEventListener('click', async ()=>{
+  if(!(readyPast&&readyNow)) return;
+  showLoading();
+  await waitPrebuffer(PREBUFFER_FRAC, 6000); // しきい値・タイムアウト調整可
+  // 同時スタート：現在値を合わせ、両方 play。微ズレは syncTick で吸収。
+  const t = Math.min(pastPlayer.getCurrentTime()||0, nowPlayer.getCurrentTime()||0);
+  seekBoth(t);
+  hideLoading();
+  playBoth();
+});
+
+/* YouTube IFrame API 挿入 */
+const tag=document.createElement('script');
+tag.src="https://www.youtube.com/iframe_api";
+document.head.appendChild(tag);
+
+/* API Ready → プレイヤー生成（controls=0 / playsinline=1 / disablekb=1） */
+window.onYouTubeIframeAPIReady = function(){
+  const playerVars = {
+    playsinline:1, controls:0, rel:0, fs:0, iv_load_policy:3, disablekb:1, origin: location.origin
+  };
+  showLoading();
+  pastPlayer = new YT.Player('pastBox', {
+    videoId: YT_PAST_ID, width:'100%', height:'100%', playerVars,
+    events:{
+      onReady: e=>{ readyPast=true; e.target.mute(); checkReady(); },
+      onStateChange: onStateChange
+    }
+  });
+  nowPlayer = new YT.Player('nowBox', {
+    videoId: YT_NOW_ID, width:'100%', height:'100%', playerVars,
+    events:{
+      onReady: e=>{ readyNow=true; e.target.mute(); checkReady(); },
+      onStateChange: onStateChange
+    }
+  });
+};
+
+function onStateChange(ev){
+  const s=ev.data; // -1 未開始,0 終了,1 再生,2 停止,3 バッファ,5 cued
+  if(s===3){ showLoading(); }
+  if(s===1||s===2||s===5){ hideLoading(); }
+  if(s===0){ pauseBoth(); } // どちらか終了で止める
+}
+
+function checkReady(){
+  if(readyPast && readyNow){
+    hideLoading();
+    updateDuration();
+    updateTimeUI();
+    startSync();
+  }
+}
+
+/* 全画面の下部フェーダーと上部ミニフェーダーを常に同期 */
+fadeInline.addEventListener('input', e=> setFade(parseFloat(e.target.value)));
+fadeBottomRange.addEventListener('input', e=> setFade(parseFloat(e.target.value)));
+
+</script>
+</body>
+</html>
