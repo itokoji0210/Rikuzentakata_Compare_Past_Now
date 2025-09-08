@@ -1,0 +1,1 @@
+# Rikuzentakata_Compare_Past_Now
